@@ -19,7 +19,7 @@ public class DevWebProjectApplication {
     }
 
 
-    @Bean
+    //@Bean
     public CommandLineRunner demo(DeliveryPersonRepository deliveryPersonRepository, DeliveryRepository deliveryRepository, CustomerRepository customerRepository) {
         return args -> {
             Stream.of("Ahmed", "Nour", "Fedi").forEach(name -> {

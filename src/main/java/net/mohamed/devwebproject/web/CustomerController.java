@@ -122,6 +122,7 @@ public class CustomerController {
         }
 
         model.addAttribute("cartItems", cart);
+        model.addAttribute("customer", session.getAttribute("user"));
         model.addAttribute("cartTotal", cartService.getCartTotal(session));
         model.addAttribute("cartCount", cartService.getCartItemCount(session));
         model.addAttribute("deliveryPersons", deliveryService.getAvailableDeliveryPersons());
