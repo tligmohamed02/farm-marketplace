@@ -1,41 +1,58 @@
 package net.mohamed.devwebproject.web;
 
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import net.mohamed.devwebproject.entity.Product;
+import net.mohamed.devwebproject.service.CartService;
 import net.mohamed.devwebproject.service.ProductService;
-import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-@RestController
-@RequestMapping("/api/products")
+@Controller
+@RequestMapping("/products")
 @RequiredArgsConstructor
 public class ProductController {
     private final ProductService productService;
+    private final CartService cartService;
 
     @GetMapping
-    public ResponseEntity<List<Product>> getAllProducts() {
-        return ResponseEntity.ok(productService.getAvailableProducts());
+    public String listProducts(HttpSession session, Model model) {
+        model.addAttribute("products", productService.getAllProducts());
+        model.addAttribute("cartCount", cartService.getCartItemCount(session));
+        return "products/list";
     }
 
-    @GetMapping("/farmer/{farmerId}")
-    public ResponseEntity<List<Product>> getProductsByFarmer(@PathVariable Long farmerId) {
-        return ResponseEntity.ok(productService.getProductsByFarmer(farmerId));
+    @GetMapping("/{id}")
+    public String productDetail(@PathVariable Long id, HttpSession session, Model model) {
+        Product product = productService.getProductById(id);
+        if (product == null) {
+            return "redirect:/products";
+        }
+        model.addAttribute("product", product);
+        model.addAttribute("cartCount", cartService.getCartItemCount(session));
+        return "products/detail";
     }
 
-    @PostMapping("/farmer/{farmerId}")
-    public ResponseEntity<Product> addProduct(@PathVariable Long farmerId, @RequestBody Product product) {
-        return ResponseEntity.ok(productService.addProduct(farmerId, product));
-    }
+    @PostMapping("/cart/add")
+    public String addToCartPublic(@RequestParam Long productId,
+                                  @RequestParam(defaultValue = "1") Integer quantity,
+                                  HttpSession session,
+                                  RedirectAttributes redirectAttributes) {
+        // Vérifier si l'utilisateur est connecté
+        if (session.getAttribute("userId") == null) {
+            redirectAttributes.addFlashAttribute("error", "Vous devez être connecté pour ajouter au panier");
+            return "redirect:/auth/login";
+        }
 
-    @PutMapping("/{productId}")
-    public ResponseEntity<Product> updateProduct(@PathVariable Long productId, @RequestBody Product product) {
-        return ResponseEntity.ok(productService.updateProduct(productId, product));
-    }
-
-    @DeleteMapping("/{productId}")
-    public ResponseEntity<?> deleteProduct(@PathVariable Long productId) {
-        productService.deleteProduct(productId);
-        return ResponseEntity.ok("Product deleted");
+        try {
+            cartService.addToCart(session, productId, quantity);
+            redirectAttributes.addFlashAttribute("success", "Produit ajouté au panier !");
+            return "redirect:/products";
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+            return "redirect:/products";
+        }
     }
 }

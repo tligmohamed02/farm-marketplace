@@ -29,6 +29,10 @@ public class Delivery {
     private String trackingNumber;
 
     @OneToOne
-    @JoinColumn(name = "order_id", nullable = false)
+    @JoinColumn(name = "order_id")
     private Order order;
+
+    @ManyToOne
+    @JoinColumn(name = "delivery_person_id")
+    private DeliveryPerson deliveryPerson;
 }

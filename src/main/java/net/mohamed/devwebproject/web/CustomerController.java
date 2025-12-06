@@ -3,10 +3,12 @@ package net.mohamed.devwebproject.web;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import net.mohamed.devwebproject.dto.CartItem;
+import net.mohamed.devwebproject.entity.Delivery;
 import net.mohamed.devwebproject.entity.Order;
 import net.mohamed.devwebproject.entity.OrderItem;
 import net.mohamed.devwebproject.entity.Product;
 import net.mohamed.devwebproject.service.CartService;
+import net.mohamed.devwebproject.service.DeliveryService;
 import net.mohamed.devwebproject.service.OrderService;
 import net.mohamed.devwebproject.service.ProductService;
 import org.springframework.stereotype.Controller;
@@ -24,6 +26,7 @@ public class CustomerController {
     private final OrderService orderService;
     private final ProductService productService;
     private final CartService cartService;
+    private final DeliveryService deliveryService;
 
     @GetMapping("/dashboard")
     public String dashboard(HttpSession session, Model model) {
@@ -35,16 +38,6 @@ public class CustomerController {
         model.addAttribute("user", session.getAttribute("user"));
         model.addAttribute("cartCount", cartService.getCartItemCount(session));
         return "customer/dashboard";
-    }
-
-    @GetMapping("/products")
-    public String viewProducts(HttpSession session, Model model) {
-        if (session.getAttribute("userId") == null) {
-            return "redirect:/auth/login";
-        }
-        model.addAttribute("products", productService.getAvailableProducts());
-        model.addAttribute("cartCount", cartService.getCartItemCount(session));
-        return "customer/products";
     }
 
     @PostMapping("/cart/add")
@@ -63,7 +56,7 @@ public class CustomerController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }
 
-        return "redirect:/customer/products";
+        return "redirect:/products";
     }
 
     @GetMapping("/cart")
@@ -116,8 +109,29 @@ public class CustomerController {
         return "redirect:/customer/cart";
     }
 
-    @PostMapping("/cart/checkout")
-    public String checkout(HttpSession session, RedirectAttributes redirectAttributes) {
+    @GetMapping("/checkout")
+    public String checkoutPage(HttpSession session, Model model) {
+        Long customerId = (Long) session.getAttribute("userId");
+        if (customerId == null) {
+            return "redirect:/auth/login";
+        }
+
+        List<CartItem> cart = cartService.getCart(session);
+        if (cart.isEmpty()) {
+            return "redirect:/customer/cart";
+        }
+
+        model.addAttribute("cartItems", cart);
+        model.addAttribute("cartTotal", cartService.getCartTotal(session));
+        model.addAttribute("cartCount", cartService.getCartItemCount(session));
+        model.addAttribute("deliveryPersons", deliveryService.getAvailableDeliveryPersons());
+        return "customer/checkout";
+    }
+
+    @PostMapping("/checkout/confirm")
+    public String confirmCheckout(@RequestParam(required = false) Long deliveryPersonId,
+                                  HttpSession session,
+                                  RedirectAttributes redirectAttributes) {
         Long customerId = (Long) session.getAttribute("userId");
         if (customerId == null) {
             return "redirect:/auth/login";
@@ -144,16 +158,20 @@ public class CustomerController {
             // Créer la commande
             Order order = orderService.placeOrder(customerId, orderItems);
 
+            // Créer la livraison
+            Delivery delivery = deliveryService.createDelivery(order, deliveryPersonId);
+            order.setDelivery(delivery);
+
             // Vider le panier
             cartService.clearCart(session);
 
             redirectAttributes.addFlashAttribute("success",
-                    "Commande passée avec succès ! Numéro de commande: " + order.getOrderId());
+                    "Commande #" + order.getOrderId() + " passée avec succès ! Tracking: " + delivery.getTrackingNumber());
             return "redirect:/customer/dashboard";
 
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Erreur: " + e.getMessage());
-            return "redirect:/customer/cart";
+            return "redirect:/customer/checkout";
         }
     }
 
@@ -162,7 +180,8 @@ public class CustomerController {
         if (session.getAttribute("userId") == null) {
             return "redirect:/auth/login";
         }
-        model.addAttribute("order", orderService.getOrderById(id));
+        Order order = orderService.getOrderById(id);
+        model.addAttribute("order", order);
         model.addAttribute("cartCount", cartService.getCartItemCount(session));
         return "customer/order-detail";
     }
